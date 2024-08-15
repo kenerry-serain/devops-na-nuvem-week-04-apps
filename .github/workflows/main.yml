@@ -55,3 +55,45 @@ jobs:
           git add kustomization.yml
           git commit -m "[DevOpsNaNuvemWeek] Changing Image TAG to $REGISTRY/$ECR_BACKEND_REPOSITORY:$IMAGE_TAG"
           git push
+  
+  frontend:
+    name: FrontEnd Deployment
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checking Code Out
+      uses: actions/checkout@v4
+
+    - name: AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-region: ${{vars.AWS_REGION}}
+        role-to-assume: ${{vars.AWS_DEPLOYMENT_ROLE_ARN}}
+
+    - name: Login Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Docker Build
+      env:
+        REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+      run: |
+        docker build -f ./frontend/youtube-live-app/Dockerfile -t $REGISTRY/$ECR_FRONTEND_REPOSITORY:$IMAGE_TAG ./frontend/youtube-live-app
+        docker push $REGISTRY/$ECR_FRONTEND_REPOSITORY:$IMAGE_TAG
+
+    - uses: actions/checkout@v4
+      name: Checking Out GitOps Repository
+      with:
+        repository: "kenerry-serain/devops-na-nuvem-week-04-gitops"
+        token: ${{secrets.PAT}}
+
+    - name: Updating New Image
+      env:
+        REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+      run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          kustomize edit set image $REGISTRY/$ECR_FRONTEND_REPOSITORY=$REGISTRY/$ECR_FRONTEND_REPOSITORY:$IMAGE_TAG
+          git add kustomization.yml
+          git commit -m "[DevOpsNaNuvemWeek] Changing Image TAG to $REGISTRY/$ECR_FRONTEND_REPOSITORY:$IMAGE_TAG"
+          git push
